@@ -1,23 +1,27 @@
 // js/game_manager.js
 
-import { DESIGN_WIDTH, DESIGN_HEIGHT, LEVEL_DURATION, LIGHT_BLUE } from './config.js';
-import { loadAssets } from './assets.js';
+import {
+  DESIGN_WIDTH, DESIGN_HEIGHT, LEVEL_DURATION, LIGHT_BLUE,
+  COYOTE_FRAMES, JUMP_BUFFER_FRAMES
+} from './config.js';
+import { LEVELS } from './levels_config.js';
 import { Player } from './player.js';
 import { Spikes } from './spikes.js';
 import { LevelManager } from './level_manager.js';
 import { Bubble } from './bubbles.js';
-import { 
-  drawBlackBarBehindSpikes, 
-  drawPowerupBar, 
-  drawHudText 
+import {
+  drawBlackBarBehindSpikes,
+  drawPowerupBar,
+  drawHudText
 } from './ui.js';
-import { 
-  showCompletionScreen, 
-  showGameOverScreen, 
-  showOutOfLivesScreen 
+import {
+  showCompletionScreen,
+  showGameOverScreen,
+  showOutOfLivesScreen,
+  showScoreboard,
 } from './screens.js';
+import { addScore } from './scoreboard.js';
 
-// "Persistent" class variables
 let persistentBaselineCoins = 0;
 let persistentLives = 10;
 
@@ -27,116 +31,282 @@ export class Game {
     this.ctx = canvas.getContext('2d');
     this.assets = assets;
 
-    // Player, spikes, level manager, etc.
-    this.levelManager = new LevelManager(this.assets.pokemonImages, this.assets.coinImage);
+    // Game objects
+    this.levelManager = new LevelManager(this.assets.pokemon_images, this.assets.coin_image);
     this.player = new Player();
     this.spikes = new Spikes();
     this.bubbles = [];
 
-    // Persistent
+    // Persistent values
     this.lives = persistentLives;
     this.baselineCoins = persistentBaselineCoins;
-
     this.currentLevelCoins = 0;
     this.finalCoinsForScoreboard = 0;
+    this.levelIndex = 0;
 
-    // Timers
-    this.startTime = null;
+    // Game state
+    this.state = "playing"; // other: "levelComplete", "gameOver", "outOfLives", "scoreboard", "waiting"
+    this.startTime = performance.now();
     this.levelComplete = false;
-    this.coyoteFramesCharged = 0;
-    this.jumpBufferFramesCharged = 0;
-    this.coyoteFramesInstant = 0;
-    this.jumpBufferFramesInstant = 0;
 
-    // Bind input handling
+    // Platformer helpers (coyote, jump buffer)
+    this.coyoteFrames = 0;
+    this.jumpBufferFrames = 0;
+
+    // Input
     this.keyStates = {};
     window.addEventListener('keydown', e => this.handleKeyDown(e));
     window.addEventListener('keyup', e => this.handleKeyUp(e));
-    // TODO: Gamepad/joystick support
   }
 
   start() {
-    this.mainLoop = this.mainLoop.bind(this);
     this.run();
   }
 
   run() {
+    // (Re)start current level
     this.currentLevelCoins = 0;
     this.levelComplete = false;
+    this.state = "playing";
     this.startTime = performance.now();
+
+    // Reset objects (player, platforms, obstacles, bubbles)
+    this.levelManager.generateSeededLevel(this.levelIndex);
+    this.player = new Player();
+    this.bubbles = [];
+
+    // Reset coyote and jump buffer
+    this.coyoteFrames = 0;
+    this.jumpBufferFrames = 0;
+
     this.looping = true;
     this.loop();
   }
 
   loop() {
     if (!this.looping) return;
+    this.processInput();
     this.update();
     this.draw();
-    requestAnimationFrame(this.loop.bind(this));
+    requestAnimationFrame(() => this.loop());
   }
 
+  // --------------- EVENT HANDLING AND INPUT LOGIC ---------------
+
+  handleKeyDown(e) {
+    this.keyStates[e.code] = true;
+
+    if (this.state !== "playing") {
+      // R for restart from game over/scoreboard
+      if (e.code === "KeyR") {
+        this.restartGame();
+      }
+      return;
+    }
+
+    // 'Space': charged jump (hold and release)
+    if (e.code === "Space") {
+      if (this.player.onGround || this.coyoteFrames > 0) {
+        this.player.startCharge();
+        this.jumpBufferFrames = 0;
+      } else {
+        this.jumpBufferFrames = JUMP_BUFFER_FRAMES;
+      }
+    }
+    // 'KeyX': instant/double jump
+    if (e.code === "KeyX") {
+      if (this.player.onGround || this.coyoteFrames > 0) {
+        this.player.jump();
+        this.jumpBufferFrames = 0;
+      } else if (this.player.canDoubleJump) {
+        this.player.jump();
+        this.player.canDoubleJump = false;
+        this.jumpBufferFrames = 0;
+      } else {
+        this.jumpBufferFrames = JUMP_BUFFER_FRAMES;
+      }
+    }
+  }
+
+  handleKeyUp(e) {
+    this.keyStates[e.code] = false;
+
+    if (this.state !== "playing") return;
+
+    // Release Space: perform charged jump if charging
+    if (e.code === "Space" && this.player.charging) {
+      this.player.releaseCharge();
+      this.jumpBufferFrames = 0;
+    }
+  }
+
+  processInput() {
+    // --- Lateral movement (continuous) ---
+    if (this.keyStates["ArrowLeft"])  this.player.x -= this.assets.config?.SPEED || 7;
+    if (this.keyStates["ArrowRight"]) this.player.x += this.assets.config?.SPEED || 7;
+    // Clamp to game area
+    this.player.x = Math.max(0, Math.min(DESIGN_WIDTH - this.player.width, this.player.x));
+  }
+
+  // --------------- GAME UPDATE LOGIC ---------------
+
   update() {
-    // TODO: update bubbles, handle inputs, collisions, levelManager, etc.
-    // Example:
-    // this.updateBubbles();
-    // this.processEvents();
-    // this.updateInput();
-    // this.updateObjects();
-    // this.player.move(this.levelManager.platforms);
-    // ...
-    // Handle win/loss states, collisions, etc.
+    if (this.state !== "playing") return;
+
+    // --- Bubbles (background effect) ---
+    if (Math.random() < 0.03) {
+      this.bubbles.push(new Bubble(
+        Math.random() * DESIGN_WIDTH,
+        DESIGN_HEIGHT - 5
+      ));
+    }
+    this.bubbles.forEach(b => b.update());
+    this.bubbles = this.bubbles.filter(b => !b.offScreen());
+
+    // --- Player movement, gravity, platform collision ---
+    this.player.update(this.levelManager.platforms, this.keyStates);
+
+    // --- Obstacles update ---
+    this.levelManager.updateObstacles();
+
+    // --- Platforms update ---
+    this.levelManager.updatePlatforms();
+
+    // --- Coins update ---
+    this.levelManager.updateCoins();
+
+    // --- Coyote time / jump buffer handling ---
+    if (this.player.onGround) {
+      this.coyoteFrames = COYOTE_FRAMES;
+      // Allow jump buffer: if jump pressed just before landing
+      if (this.jumpBufferFrames > 0) {
+        this.player.jump();
+        this.jumpBufferFrames = 0;
+      }
+    } else {
+      if (this.coyoteFrames > 0) this.coyoteFrames--;
+      if (this.jumpBufferFrames > 0) this.jumpBufferFrames--;
+    }
+
+    // --- Collect coins ---
+    for (let i = this.levelManager.starCoins.length - 1; i >= 0; i--) {
+      const coin = this.levelManager.starCoins[i];
+      if (this.rectsCollide(this.player, coin)) {
+        this.currentLevelCoins += 1;
+        this.assets.coin_sound && this.assets.coin_sound.play();
+        this.levelManager.starCoins.splice(i, 1);
+      }
+    }
+
+    // --- Check for player death (spikes) ---
+    if (this.player.y + this.player.height > DESIGN_HEIGHT - this.spikes.height) {
+      this.assets.boing_sound && this.assets.boing_sound.play();
+      this.gameOver();
+      return;
+    }
+
+    // --- Check for obstacle collisions ---
+    if (this.levelManager.checkObstacleCollisions(this.player)) {
+      this.assets.boing_sound && this.assets.boing_sound.play();
+      this.gameOver();
+      return;
+    }
+
+    // --- Level completion ---
+    const elapsed = (performance.now() - this.startTime) / 1000;
+    if (elapsed > LEVEL_DURATION) {
+      this.completeLevel();
+    }
   }
 
   draw() {
-    // Clear the canvas
+    // Clear
     this.ctx.fillStyle = LIGHT_BLUE;
     this.ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
 
-    // Draw bubbles, background bar, player, spikes, platforms, coins, obstacles, HUD
-    // drawBlackBarBehindSpikes(this);
-    // this.player.draw(this.ctx);
-    // this.spikes.draw(this.ctx);
-    // ...
-    // drawHudText(this, ...);
-    // drawPowerupBar(this);
+    // Draw background bar and bubbles
+    drawBlackBarBehindSpikes(this.ctx);
+    this.bubbles.forEach(b => b.draw(this.ctx));
+
+    // Platforms
+    this.levelManager.platforms.forEach(p => p.draw(this.ctx));
+    // Obstacles
+    this.levelManager.obstacles.forEach(o => o.draw(this.ctx));
+    // Coins
+    this.levelManager.starCoins.forEach(c => c.draw(this.ctx));
+
+    // Spikes
+    this.spikes.draw(this.ctx);
+
+    // Player
+    this.player.draw(this.ctx);
+
+    // UI/HUD
+    const elapsed = (performance.now() - this.startTime) / 1000;
+    drawHudText(this.ctx, this, Math.max(0, LEVEL_DURATION - elapsed));
+    drawPowerupBar(this.ctx, this.player);
   }
 
-  // Input event handlers
-  handleKeyDown(e) {
-    this.keyStates[e.code] = true;
-    // Handle pressed keys: jump, instant jump, pause, etc.
-    // if (e.code === 'Space') ...
-  }
-  handleKeyUp(e) {
-    this.keyStates[e.code] = false;
-    // Handle key release: e.g. end jump charging
+  // ------------ COLLISION -----------
+  rectsCollide(a, b) {
+    return !(
+      a.x + a.width < b.x ||
+      a.x > b.x + b.width ||
+      a.y + a.height < b.y ||
+      a.y > b.y + b.height
+    );
   }
 
-  // Other methods: updateBubbles, processEvents, updateInput, updateObjects, drawBubbles, collision checks, etc.
-
-  // Game end states
+  // ------------ GAME STATE TRANSITIONS -----------
   completeLevel() {
-    this.levelComplete = true;
+    this.state = "levelComplete";
     this.looping = false;
     persistentBaselineCoins = this.baselineCoins + this.currentLevelCoins;
-    showCompletionScreen(this);
+    showCompletionScreen(this.ctx, this.levelIndex, () => {
+      this.levelIndex++;
+      if (this.levelIndex >= LEVELS.length) {
+        // All levels complete, show scoreboard/final
+        this.handleGameFinished();
+      } else {
+        this.run();
+      }
+    });
   }
+
   gameOver() {
+    this.state = "gameOver";
     this.looping = false;
     this.lives -= 1;
     persistentLives = this.lives;
     if (this.lives <= 0) {
       this.finalCoinsForScoreboard = this.baselineCoins + this.currentLevelCoins;
-      showOutOfLivesScreen(this);
+      showOutOfLivesScreen(this.ctx, this.finalCoinsForScoreboard, initials => {
+        // Save score and show scoreboard
+        const entries = addScore(initials, this.finalCoinsForScoreboard);
+        showScoreboard(this.ctx, entries, () => this.restartGame(true));
+      });
     } else {
       this.currentLevelCoins = 0;
-      showGameOverScreen(this);
+      showGameOverScreen(this.ctx, this.levelIndex, () => this.run());
     }
   }
-}
 
-export function main(canvas, assets) {
-  // You could use this for repeated runs/restarts
-  const game = new Game(canvas, assets);
-  game.start();
+  handleGameFinished() {
+    // All levels complete: prompt for initials, show scoreboard, reset
+    showOutOfLivesScreen(this.ctx, this.baselineCoins + this.currentLevelCoins, initials => {
+      const entries = addScore(initials, this.baselineCoins + this.currentLevelCoins);
+      showScoreboard(this.ctx, entries, () => this.restartGame(true));
+    });
+  }
+
+  restartGame(resetAll = false) {
+    if (resetAll) {
+      this.levelIndex = 0;
+      this.lives = 10;
+      this.baselineCoins = 0;
+      persistentBaselineCoins = 0;
+      persistentLives = 10;
+    }
+    this.run();
+  }
 }
