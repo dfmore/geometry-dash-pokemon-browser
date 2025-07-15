@@ -44,3 +44,16 @@ export const BUBBLE_SPEED_MIN = 1;
 export const BUBBLE_SPEED_MAX = 3;
 export const BUBBLE_SPAWN_RATE = 0.03;
 export const BUBBLE_MAX_COUNT = 15;
+
+// --- Colors ---
+
+export const WHITE      = '#FFFFFF';
+export const RED        = '#FF0000';
+export const BLUE       = '#0000FF';
+export const GREEN      = '#00FF00';
+export const BLACK      = '#000000';
+export const LIGHT_BLUE = '#ADD8E6';
+
+export const SPIKE_COLOR    = 'rgb(255,0,0)';
+export const BUBBLE_COLOR   = '#00FF00';
+export const SPIKE_BG_COLOR = '#000000';

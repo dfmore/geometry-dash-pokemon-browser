@@ -6,7 +6,7 @@ import {
   SPIKE_HEIGHT_FRAC,
   SPIKE_COUNT
 } from './config.js';
-import { SPIKE_COLOR } from './colors.js';
+import { SPIKE_COLOR } from './config.js';
 
 export class Spikes {
   constructor() {
