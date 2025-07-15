@@ -96,35 +96,20 @@ export class Game {
   handleKeyDown(e) {
     this.keyStates[e.code] = true;
 
-    if (this.state !== "playing") {
-      // R for restart from game over/scoreboard
-      if (e.code === "KeyR") {
-        this.restartGame();
+    if (this.state !== "playing") return;
+
+    // Charged jump (hold Space to charge)
+    if (e.code === "Space") {
+      if (this.player.onGround /* or coyote time if you implement it */) {
+        this.player.startCharge();
+        // Optionally: clear jump buffer, coyote, etc.
       }
-      return;
     }
 
-    // 'Space': charged jump (hold and release)
-    if (e.code === "Space") {
-      if (this.player.onGround || this.coyoteFrames > 0) {
-        this.player.startCharge();
-        this.jumpBufferFrames = 0;
-      } else {
-        this.jumpBufferFrames = JUMP_BUFFER_FRAMES;
-      }
-    }
-    // 'KeyX': instant/double jump
+    // Instant jump/double jump (X)
     if (e.code === "KeyX") {
-      if (this.player.onGround || this.coyoteFrames > 0) {
-        this.player.jump();
-        this.jumpBufferFrames = 0;
-      } else if (this.player.canDoubleJump) {
-        this.player.jump();
-        this.player.canDoubleJump = false;
-        this.jumpBufferFrames = 0;
-      } else {
-        this.jumpBufferFrames = JUMP_BUFFER_FRAMES;
-      }
+      this.player.jump();
+      // Optionally: clear jump buffer, coyote, etc.
     }
   }
 
@@ -133,12 +118,12 @@ export class Game {
 
     if (this.state !== "playing") return;
 
-    // Release Space: perform charged jump if charging
-    if (e.code === "Space" && this.player.charging) {
+    // Release charged jump (Space up)
+    if (e.code === "Space") {
       this.player.releaseCharge();
-      this.jumpBufferFrames = 0;
     }
   }
+
 
   processInput() {
     // --- Lateral movement (continuous) ---

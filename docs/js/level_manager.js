@@ -1,5 +1,7 @@
 // js/level_manager.js
 
+import seedrandom from "https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/+esm";
+
 import {
   DESIGN_WIDTH, DESIGN_HEIGHT, LEVEL_DURATION, SPEED, COLLISION_TOLERANCE
 } from './config.js';
@@ -43,7 +45,7 @@ export class LevelManager {
 
     // --- Use a seedable RNG for level structure ---
     const seedVal = levelData.seed || 0;
-    const rng = window.seedrandom(seedVal); // Provided by script tag
+    const rng = seedrandom(seedVal);
 
     const platformCount = Math.floor(LEVEL_DURATION);
 
