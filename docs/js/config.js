@@ -20,6 +20,7 @@ export const SPIKE_COUNT = 20;
 export const SPIKE_BG_OVERLAP = 30;
 
 // --- Movement & Physics ---
+export const FIXED_TIME_STEP = 1000 / 60;
 export const GRAVITY = 1;
 export const MIN_JUMP_STRENGTH = 15;
 export const MAX_JUMP_STRENGTH = 45;

@@ -2,7 +2,7 @@
 
 import {
   DESIGN_WIDTH, DESIGN_HEIGHT, LEVEL_DURATION, LIGHT_BLUE,
-  COYOTE_FRAMES, NUDGE_RANGE, NUDGE_SPEED
+  COYOTE_FRAMES, NUDGE_RANGE, NUDGE_SPEED, FIXED_TIME_STEP
 } from './config.js';
 import { LEVELS } from './levels_config.js';
 import { Player } from './player.js';
@@ -63,6 +63,7 @@ export class Game {
     this.run();
   }
 
+
   run() {
     // (Re)start current level
     this.currentLevelCoins = 0;
@@ -70,23 +71,37 @@ export class Game {
     this.state = "playing";
     this.startTime = performance.now();
 
-    // Reset objects (player, platforms, obstacles, bubbles)
+    // Reset objects
     this.levelManager.generateSeededLevel(this.levelIndex);
     this.player = new Player();
     this.bubbles = [];
-
-    // Reset coyote and jump buffer
     this.coyoteFrames = 0;
     this.jumpBufferFrames = 0;
 
     this.looping = true;
-    this.loop();
+    this.lastFrameTime = performance.now(); // <--- ADD THIS
+    this.accumulator = 0;                   // <--- ADD THIS
+
+    this.loop(); // Start the loop!
   }
 
   loop() {
     if (!this.looping) return;
-    this.processInput();
-    this.update();
+
+    const now = performance.now();
+    let frameTime = now - this.lastFrameTime;
+    if (frameTime > 250) frameTime = FIXED_TIME_STEP; // avoid big jump after tab inactive
+
+    this.lastFrameTime = now;
+    this.accumulator += frameTime;
+
+    // Fixed step: update in multiples of FIXED_TIME_STEP
+    while (this.accumulator >= FIXED_TIME_STEP) {
+      this.processInput();
+      this.update();
+      this.accumulator -= FIXED_TIME_STEP;
+    }
+
     this.draw();
     requestAnimationFrame(() => this.loop());
   }
