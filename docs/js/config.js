@@ -24,7 +24,7 @@ export const GRAVITY = 1;
 export const MIN_JUMP_STRENGTH = 15;
 export const MAX_JUMP_STRENGTH = 45;
 export const CHARGE_RATE = 1;
-export const SPEED = 6;
+export const SPEED = 3;
 export const LEVEL_DURATION = 40; // seconds
 export const COLLISION_TOLERANCE = 7;
 
@@ -33,9 +33,8 @@ export const COYOTE_FRAMES = 3;
 export const JUMP_BUFFER_FRAMES = 2;
 
 // --- Joystick Support ---
-export const JOYSTICK_NUDGE_RANGE = 50;
-export const JOYSTICK_NUDGE_DEADZONE = 0.1;
-export const JOYSTICK_NUDGE_SPEED = 0.15;
+export const NUDGE_RANGE = 50;
+export const NUDGE_SPEED = 0.15;
 
 // --- Bubble Effects ---
 export const BUBBLE_MIN_RADIUS = 5;

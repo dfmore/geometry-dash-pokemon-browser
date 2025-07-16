@@ -1,4 +1,5 @@
 // js/obstacle.js
+import { SPEED } from './config.js';
 
 export class Obstacle {
   constructor(x, y, pokemonImages, rng = Math.random) {
@@ -10,7 +11,7 @@ export class Obstacle {
     this.y = y;
     // SPEED should be imported from config.js
     // (if not, add: import { SPEED } from './config.js';)
-    this.speed = typeof SPEED !== 'undefined' ? SPEED : 6; // fallback if not imported
+    this.speed = SPEED
   }
 
   move() {

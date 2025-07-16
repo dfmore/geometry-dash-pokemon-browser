@@ -2,7 +2,7 @@
 
 import {
   DESIGN_WIDTH, DESIGN_HEIGHT, LEVEL_DURATION, LIGHT_BLUE,
-  COYOTE_FRAMES, JUMP_BUFFER_FRAMES
+  COYOTE_FRAMES, NUDGE_RANGE, NUDGE_SPEED
 } from './config.js';
 import { LEVELS } from './levels_config.js';
 import { Player } from './player.js';
@@ -126,9 +126,17 @@ export class Game {
 
 
   processInput() {
-    // --- Lateral movement (continuous) ---
-    if (this.keyStates["ArrowLeft"])  this.player.x -= this.assets.config?.SPEED || 7;
-    if (this.keyStates["ArrowRight"]) this.player.x += this.assets.config?.SPEED || 7;
+  // 1) Compute arrow‑key nudge
+    let horizontalInput = 0;
+    if (this.keyStates["ArrowLeft"])  horizontalInput = -1;
+    if (this.keyStates["ArrowRight"]) horizontalInput = +1;
+
+    // 2) Compute your nudge target around the “home” X
+    const targetX = this.player.default_x + horizontalInput * NUDGE_RANGE;
+
+    // 3) Smoothly nudge toward it
+    this.player.x += NUDGE_SPEED * (targetX - this.player.x);
+    
     // Clamp to game area
     this.player.x = Math.max(0, Math.min(DESIGN_WIDTH - this.player.width, this.player.x));
   }

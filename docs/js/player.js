@@ -20,6 +20,7 @@ export class Player {
     this.height = side;
     this.x = 100;
     this.y = 320;
+    this.default_x = this.x;
 
     // Physics
     this.velY = 0;
@@ -32,11 +33,6 @@ export class Player {
   }
 
   update(platforms, keyStates) {
-    // --- Horizontal movement ---
-    if (keyStates["ArrowLeft"])  this.x -= SPEED;
-    if (keyStates["ArrowRight"]) this.x += SPEED;
-    this.x = Math.max(0, Math.min(DESIGN_WIDTH - this.width, this.x));
-
     // --- Gravity ---
     this.velY += GRAVITY;
     this.y += this.velY;
